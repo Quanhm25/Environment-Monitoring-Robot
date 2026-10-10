@@ -3,7 +3,6 @@
 
 #include "stm32f4xx.h"
 
-//State Machine cho di chuyển robot (lần cập nhật cuối: Phase 1)
 typedef enum
 {
 	ROBOT_STOP = 0,
