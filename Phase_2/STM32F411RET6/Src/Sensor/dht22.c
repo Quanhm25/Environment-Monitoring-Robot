@@ -1,9 +1,8 @@
 #include "sensor/dht22.h"
 #include "gpio_macro.h"
 
-#define DHT_PIN 6
+#define DHT_PIN 0
 
-//State Machine cho cảm biến nhiệt độ, độ ẩm (DHT22) (lần cập nhật cuối: Phase 2)
 typedef enum
 {
 	DHT_IDLE,
@@ -21,9 +20,9 @@ static volatile uint32_t dhtRiseTime = 0;
 static volatile uint32_t dhtFallTime = 0;
 
 //Input Capture cho DHT22
-void TIM3_IRQHandler(void) {
-	if(!(TIM3->SR & TIM_SR_CC1IF)) return;
-	uint16_t capture = TIM3->CCR1;
+void TIM5_IRQHandler(void) {
+	if(!(TIM5->SR & TIM_SR_CC1IF)) return;
+	uint16_t capture = TIM5->CCR1;
 	uint8_t pinHigh = (GPIOA->IDR & (1<<DHT_PIN)) ? 1 : 0;
 
 	if(dhtState != DHT_READ_DATA) return;
@@ -39,7 +38,7 @@ void TIM3_IRQHandler(void) {
 		dhtBitIdx++;
 
 		if(dhtBitIdx >= 40) {
-			TIM3->DIER &= ~TIM_DIER_CC1IE;
+			TIM5->DIER &= ~TIM_DIER_CC1IE;
 			dhtState = DHT_DONE;
 		}
 	}
@@ -63,32 +62,32 @@ static inline void DHT_PinAsTimerCapture(void) {
 }
 
 void DHT_TIM_Init(void) {
-	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
-	TIM3->PSC = 84 - 1;
-	TIM3->ARR = 0xFFFF;
+	RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
+	TIM5->PSC = 84 - 1;
+	TIM5->ARR = 0xFFFF;
 
-	TIM3->CCMR1 = (TIM3->CCMR1 & ~TIM_CCMR1_CC1S) | TIM_CCMR1_CC1S_0;
-	TIM3->CCMR1 &= ~TIM_CCMR1_IC1F;
-	TIM3->CCER &= ~TIM_CCER_CC1E;
-	TIM3->CCER |= (TIM_CCER_CC1P | TIM_CCER_CC1NP);
-	TIM3->CR1 |= TIM_CR1_CEN;
-	NVIC_EnableIRQ(TIM3_IRQn);
+	TIM5->CCMR1 = (TIM5->CCMR1 & ~TIM_CCMR1_CC1S) | TIM_CCMR1_CC1S_0;
+	TIM5->CCMR1 &= ~TIM_CCMR1_IC1F;
+	TIM5->CCER &= ~TIM_CCER_CC1E;
+	TIM5->CCER |= (TIM_CCER_CC1P | TIM_CCER_CC1NP);
+	TIM5->CR1 |= TIM_CR1_CEN;
+	NVIC_EnableIRQ(TIM5_IRQn);
 }
 
 void DHT_CheckTimeout(void) {
 	if(dhtState == DHT_READ_DATA) {
-		uint16_t elapsed = (uint16_t)(TIM3->CNT - dhtReadStartCapture);
+		uint16_t elapsed = (uint16_t)(TIM5->CNT - dhtReadStartCapture);
 		if(elapsed > 10000) {
-			TIM3->DIER &= ~TIM_DIER_CC1IE;
-			TIM3->CCER &= ~TIM_CCER_CC1E;
+			TIM5->DIER &= ~TIM_DIER_CC1IE;
+			TIM5->CCER &= ~TIM_CCER_CC1E;
 			dhtState = DHT_IDLE;
 		}
 	}
 }
 
 static void DHT_Delay(uint16_t us) {
-	uint16_t start = TIM3->CNT;
-	while ((uint16_t)(TIM3->CNT - start) < us);
+	uint16_t start = TIM5->CNT;
+	while ((uint16_t)(TIM5->CNT - start) < us);
 }
 
 uint8_t DHT_StartRead(void) {
@@ -96,8 +95,8 @@ uint8_t DHT_StartRead(void) {
 	dhtBitIdx = 0;
 	for(uint8_t i = 0; i < 5; i++) dhtData[i] = 0;
 
-	TIM3->DIER &= ~TIM_DIER_CC1IE;
-	TIM3->CCER &= ~TIM_CCER_CC1E;
+	TIM5->DIER &= ~TIM_DIER_CC1IE;
+	TIM5->CCER &= ~TIM_CCER_CC1E;
 
 	DHT_PinAsOutput();
 	PINRESET(GPIOA, DHT_PIN);
@@ -106,43 +105,43 @@ uint8_t DHT_StartRead(void) {
 
 	uint16_t t0;
 
-	t0 = TIM3->CNT;
+	t0 = TIM5->CNT;
 	while(!(GPIOA->IDR & (1<<DHT_PIN))) {
-		if((uint16_t)(TIM3->CNT - t0) > 100) {
+		if((uint16_t)(TIM5->CNT - t0) > 100) {
 			dhtState = DHT_IDLE;
 			return 0;
 		}
 	}
 
-	t0 = TIM3->CNT;
+	t0 = TIM5->CNT;
 	while((GPIOA->IDR & (1<<DHT_PIN))) {
-		if((uint16_t)(TIM3->CNT - t0) > 100) {
+		if((uint16_t)(TIM5->CNT - t0) > 100) {
 			dhtState = DHT_IDLE;
 			return 0;
 		}
 	}
 
-	t0 = TIM3->CNT;
+	t0 = TIM5->CNT;
 	while(!(GPIOA->IDR & (1<<DHT_PIN))) {
-		if((uint16_t)(TIM3->CNT - t0) > 150) {
+		if((uint16_t)(TIM5->CNT - t0) > 150) {
 			dhtState = DHT_IDLE;
 			return 0;
 		}
 	}
 
-	t0 = TIM3->CNT;
+	t0 = TIM5->CNT;
 	while((GPIOA->IDR & (1<<DHT_PIN))) {
-		if((uint16_t)(TIM3->CNT - t0) > 150) {
+		if((uint16_t)(TIM5->CNT - t0) > 150) {
 			dhtState = DHT_IDLE;
 			return 0;
 		}
 	}
 
 	dhtState = DHT_READ_DATA;
-	dhtReadStartCapture = TIM3->CNT;
-	TIM3->SR = ~TIM_SR_CC1IF;
-	TIM3->CCER |= TIM_CCER_CC1E;
-	TIM3->DIER |= TIM_DIER_CC1IE;
+	dhtReadStartCapture = TIM5->CNT;
+	TIM5->SR = ~TIM_SR_CC1IF;
+	TIM5->CCER |= TIM_CCER_CC1E;
+	TIM5->DIER |= TIM_DIER_CC1IE;
 
 	return 1;
 }
