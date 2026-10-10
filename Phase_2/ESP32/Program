@@ -3,8 +3,8 @@
 #include <WebSocketsServer.h>
 #include <LittleFS.h>
 
-const char* ssid = "P2005";
-const char* password = "135797531";
+const char* ssid = "";
+const char* password = "";
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
@@ -50,7 +50,12 @@ void handleFileRequest(String path) {
 }
 
 void sendMotorCmd(char cmd) {
+  static char last = 0;
   Serial2.write(cmd);
+  if(cmd != last) {
+    Serial.printf("[CMD] %c\n", cmd);
+    last = cmd;
+  }
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
@@ -92,7 +97,6 @@ uint8_t CRC8_Calc(const uint8_t *data, uint8_t len) {
 void pollSensorUART() {
   while(Serial2.available()) {
     uint8_t b = Serial2.read();
-    Serial.printf("%02X ", b);
     if(syncing) {
       if(b == 0xAA) {frameBuf[0] = b; frameIdx = 1; syncing = false;}
       continue;
@@ -104,7 +108,6 @@ void pollSensorUART() {
       if(f->end == 0x55 && crc == f->crc) {
         g_temp = f->temperature; g_hum = f->humidity;
         g_ppm = f->smoke_ppm; g_lux = f->light_lux;
-        Serial.printf("T=%.1fC  H=%.1f%%  Smoke=%.3fppm  Lux=%.1flx\n", g_temp, g_hum, g_ppm, g_lux);
         
         String json = "{\"thermal\":" + String(g_temp,1) +
                       ",\"humidity\":" + String(g_hum,1) +
