@@ -1,1 +1,1 @@
-IIoT Mobile Environmental Monitoring Platform
+IIoT Environmental Monitoring Platform
